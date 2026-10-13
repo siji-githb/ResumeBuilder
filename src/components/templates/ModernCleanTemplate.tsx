@@ -182,7 +182,7 @@ export default function ModernCleanTemplate({ data }: Props) {
       </aside>
 
       {/* ── Main Content ────────────────────────────────────── */}
-      <main className="flex-1 p-6">
+      <main className="flex-1" style={{ padding: "var(--r-margin, 1in)" }}>
         {/* Name & Headline */}
         <header className="mb-4 pb-3 border-b-2" style={{ borderColor: accent }}>
           <h1 className="font-bold" style={{ color: accent, fontSize: s(22) }}>
@@ -231,15 +231,19 @@ export default function ModernCleanTemplate({ data }: Props) {
                   {job.company}
                   {job.location ? ` · ${job.location}` : ""}
                 </p>
-                {job.bulletPoints.length > 0 && (
-                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                    {job.bulletPoints.map((bp, i) => (
-                      <li key={i} className="leading-[1.4] text-gray-700" style={{ fontSize: s(9.5) }}>
-                        {bp}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {(() => {
+                  const validBullets = (job.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                  if (validBullets.length === 0) return null;
+                  return (
+                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                      {validBullets.map((bp, i) => (
+                        <li key={i} className="leading-[1.4] text-gray-700" style={{ fontSize: s(9.5) }}>
+                          {bp}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
               </div>
             ))}
           </section>
@@ -275,15 +279,19 @@ export default function ModernCleanTemplate({ data }: Props) {
                     {proj.link}
                   </p>
                 )}
-                {proj.bulletPoints.length > 0 && (
-                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                    {proj.bulletPoints.map((bp, i) => (
-                      <li key={i} className="leading-[1.4] text-gray-700" style={{ fontSize: s(9.5) }}>
-                        {bp}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {(() => {
+                  const validBullets = (proj.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                  if (validBullets.length === 0) return null;
+                  return (
+                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                      {validBullets.map((bp, i) => (
+                        <li key={i} className="leading-[1.4] text-gray-700" style={{ fontSize: s(9.5) }}>
+                          {bp}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
               </div>
             ))}
           </section>

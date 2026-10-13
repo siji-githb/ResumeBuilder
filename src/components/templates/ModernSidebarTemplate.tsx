@@ -45,23 +45,28 @@ export default function ModernSidebarTemplate({ data }: Props) {
       c.category.toLowerCase().includes("tool")
   );
 
-  const softSkills = softSkillsCategory
-    ? softSkillsCategory.skills
-    : skills.length > 1
-    ? skills[0].skills
-    : [];
+  const softSkills = (
+    softSkillsCategory
+      ? softSkillsCategory.skills
+      : skills.length > 1
+      ? skills[0].skills
+      : []
+  ).filter((s) => s.trim());
 
-  const techSkills = techSkillsCategory
-    ? techSkillsCategory.skills
-    : skills.length > 1
-    ? skills[1].skills
-    : skills.length === 1
-    ? skills[0].skills
-    : [];
+  const techSkills = (
+    techSkillsCategory
+      ? techSkillsCategory.skills
+      : skills.length > 1
+      ? skills[1].skills
+      : skills.length === 1
+      ? skills[0].skills
+      : []
+  ).filter((s) => s.trim());
 
-  const otherSkillCategories = skills.filter(
-    (c) => c !== softSkillsCategory && c !== techSkillsCategory
-  );
+  const otherSkillCategories = skills
+    .filter((c) => c !== softSkillsCategory && c !== techSkillsCategory)
+    .map((c) => ({ ...c, skills: c.skills.filter((s) => s.trim()) }))
+    .filter((c) => c.skills.length > 0);
 
   const hasContactInfo = Boolean(
     basics.location ||
@@ -250,7 +255,7 @@ export default function ModernSidebarTemplate({ data }: Props) {
       </aside>
 
       {/* ── Right Content Area (White Background) ─────────────── */}
-      <main className="flex-1 p-7 sm:p-9 text-[#111827] flex flex-col space-y-5">
+      <main className="flex-1 text-[#111827] flex flex-col space-y-5" style={{ padding: "var(--r-margin, 1in)" }}>
         {/* Full Name Header */}
         {basics.fullName && (
           <header className="mb-2">
@@ -364,15 +369,19 @@ export default function ModernSidebarTemplate({ data }: Props) {
                       ? ` | ${job.startDate} ${job.endDate ? `- ${job.current ? "Present" : job.endDate}` : ""}`
                       : ""}
                   </div>
-                  {job.bulletPoints && job.bulletPoints.length > 0 && (
-                    <ul className="list-disc ml-5 space-y-0.5 text-gray-800">
-                      {job.bulletPoints.map((bp, i) => (
-                        <li key={i} style={{ fontSize: s(9) }}>
-                          {bp}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {(() => {
+                    const validBullets = (job.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                    if (validBullets.length === 0) return null;
+                    return (
+                      <ul className="list-disc ml-5 space-y-0.5 text-gray-800">
+                        {validBullets.map((bp, i) => (
+                          <li key={i} style={{ fontSize: s(9) }}>
+                            {bp}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               ))}
 
@@ -401,15 +410,19 @@ export default function ModernSidebarTemplate({ data }: Props) {
                           {proj.technologies ? ` (${proj.technologies})` : ""}
                         </div>
                       )}
-                      {proj.bulletPoints && proj.bulletPoints.length > 0 && (
-                        <ul className="list-disc ml-5 space-y-0.5 text-gray-800">
-                          {proj.bulletPoints.map((bp, i) => (
-                            <li key={i} style={{ fontSize: s(9) }}>
-                              {bp}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      {(() => {
+                        const validBullets = (proj.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                        if (validBullets.length === 0) return null;
+                        return (
+                          <ul className="list-disc ml-5 space-y-0.5 text-gray-800">
+                            {validBullets.map((bp, i) => (
+                              <li key={i} style={{ fontSize: s(9) }}>
+                                {bp}
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

@@ -20,25 +20,38 @@ export default function AtsClassicTemplate({ data }: Props) {
   const { basics, summary, experience, projects, certifications, education, skills, references } = data;
 
   return (
-    <div className="ats-classic leading-[1.4] text-black bg-white p-8 w-full min-h-full" style={{ fontSize: s(11) }}>
+    <div className="ats-classic leading-[1.4] text-black bg-white w-full min-h-full" style={{ padding: "var(--r-margin, 1in)", fontSize: s(11) }}>
       {/* ── Header ──────────────────────────────────────────── */}
       <header className="text-center border-b border-gray-400 pb-3 mb-4">
         <h1 className="font-bold tracking-wide uppercase" style={{ fontSize: s(18) }}>
           {basics.fullName || "Your Name"}
         </h1>
-        <div className="text-gray-700 mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5" style={{ fontSize: s(9.5) }}>
-          {basics.location && <span>{basics.location}</span>}
-          {basics.location && basics.email && <span>|</span>}
-          {basics.email && <span>{basics.email}</span>}
-          {basics.email && basics.phone && <span>|</span>}
-          {basics.phone && <span>{basics.phone}</span>}
-          {basics.phone && basics.website && <span>|</span>}
-          {basics.website && <span>{basics.website}</span>}
-          {basics.website && basics.linkedin && <span>|</span>}
-          {basics.linkedin && <span>{basics.linkedin}</span>}
-          {basics.linkedin && basics.github && <span>|</span>}
-          {basics.github && <span>{basics.github}</span>}
-        </div>
+        {basics.headline && (
+          <p className="text-gray-700 font-medium mt-0.5 tracking-wide" style={{ fontSize: s(11) }}>
+            {basics.headline}
+          </p>
+        )}
+        {(() => {
+          const contactItems = [
+            basics.location,
+            basics.email,
+            basics.phone,
+            basics.website,
+            basics.linkedin,
+            basics.github,
+          ].filter(Boolean);
+          if (contactItems.length === 0) return null;
+          return (
+            <div className="text-gray-700 mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5" style={{ fontSize: s(9.5) }}>
+              {contactItems.map((item, idx) => (
+                <span key={idx} className="flex items-center gap-2">
+                  {idx > 0 && <span className="text-gray-400">|</span>}
+                  <span>{item}</span>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
       </header>
 
       {/* ── Summary ─────────────────────────────────────────── */}
@@ -57,32 +70,35 @@ export default function AtsClassicTemplate({ data }: Props) {
           <h2 className="font-bold uppercase border-b border-gray-300 pb-0.5 mb-1.5" style={{ fontSize: s(12) }}>
             Experience
           </h2>
-          {experience.map((job) => (
-            <div key={job.id} className="mb-2.5 page-break-avoid">
-              <div className="flex justify-between items-baseline">
-                <h3 className="font-bold" style={{ fontSize: s(11) }}>{job.role}</h3>
-                <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
-                  {job.location}
-                </span>
+          {experience.map((job) => {
+            const validBullets = (job.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+            return (
+              <div key={job.id} className="mb-2.5 page-break-avoid">
+                <div className="flex justify-between items-baseline">
+                  <h3 className="font-bold" style={{ fontSize: s(11) }}>{job.role}</h3>
+                  <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
+                    {job.location}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="italic" style={{ fontSize: s(10) }}>{job.company}</span>
+                  <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
+                    {job.startDate}
+                    {job.endDate ? ` – ${job.current ? "Present" : job.endDate}` : ""}
+                  </span>
+                </div>
+                {validBullets.length > 0 && (
+                  <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                    {validBullets.map((bp, i) => (
+                      <li key={i} className="leading-[1.4]" style={{ fontSize: s(10) }}>
+                        {bp}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              <div className="flex justify-between items-baseline">
-                <span className="italic" style={{ fontSize: s(10) }}>{job.company}</span>
-                <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
-                  {job.startDate}
-                  {job.endDate ? ` – ${job.current ? "Present" : job.endDate}` : ""}
-                </span>
-              </div>
-              {job.bulletPoints.length > 0 && (
-                <ul className="list-disc ml-5 mt-1 space-y-0.5">
-                  {job.bulletPoints.map((bp, i) => (
-                    <li key={i} className="leading-[1.4]" style={{ fontSize: s(10) }}>
-                      {bp}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 
@@ -92,43 +108,46 @@ export default function AtsClassicTemplate({ data }: Props) {
           <h2 className="font-bold uppercase border-b border-gray-300 pb-0.5 mb-1.5" style={{ fontSize: s(12) }}>
             Projects
           </h2>
-          {projects.map((proj) => (
-            <div key={proj.id} className="mb-2.5 page-break-avoid">
-              <div className="flex justify-between items-baseline">
-                <h3 className="font-bold" style={{ fontSize: s(11) }}>
-                  {proj.name}
-                  {proj.technologies && (
-                    <span className="font-normal text-gray-600 ml-2" style={{ fontSize: s(9.5) }}>
-                      | {proj.technologies}
+          {projects.map((proj) => {
+            const validBullets = (proj.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+            return (
+              <div key={proj.id} className="mb-2.5 page-break-avoid">
+                <div className="flex justify-between items-baseline">
+                  <h3 className="font-bold" style={{ fontSize: s(11) }}>
+                    {proj.name}
+                    {proj.technologies && (
+                      <span className="font-normal text-gray-600 ml-2" style={{ fontSize: s(9.5) }}>
+                        | {proj.technologies}
+                      </span>
+                    )}
+                  </h3>
+                  {proj.link && (
+                    <span className="text-blue-700 shrink-0 ml-4" style={{ fontSize: s(9) }}>
+                      {proj.link}
                     </span>
                   )}
-                </h3>
-                {proj.link && (
-                  <span className="text-blue-700 shrink-0 ml-4" style={{ fontSize: s(9) }}>
-                    {proj.link}
+                </div>
+                <div className="flex justify-between items-baseline">
+                  {proj.role && (
+                    <span className="italic" style={{ fontSize: s(10) }}>{proj.role}</span>
+                  )}
+                  <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
+                    {proj.startDate}
+                    {proj.endDate ? ` – ${proj.endDate}` : ""}
                   </span>
+                </div>
+                {validBullets.length > 0 && (
+                  <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                    {validBullets.map((bp, i) => (
+                      <li key={i} className="leading-[1.4]" style={{ fontSize: s(10) }}>
+                        {bp}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-              <div className="flex justify-between items-baseline">
-                {proj.role && (
-                  <span className="italic" style={{ fontSize: s(10) }}>{proj.role}</span>
-                )}
-                <span className="text-gray-600 shrink-0 ml-4" style={{ fontSize: s(9.5) }}>
-                  {proj.startDate}
-                  {proj.endDate ? ` – ${proj.endDate}` : ""}
-                </span>
-              </div>
-              {proj.bulletPoints.length > 0 && (
-                <ul className="list-disc ml-5 mt-1 space-y-0.5">
-                  {proj.bulletPoints.map((bp, i) => (
-                    <li key={i} className="leading-[1.4]" style={{ fontSize: s(10) }}>
-                      {bp}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 
@@ -197,12 +216,16 @@ export default function AtsClassicTemplate({ data }: Props) {
             Skills
           </h2>
           <div className="space-y-1">
-            {skills.map((cat) => (
-              <div key={cat.id} style={{ fontSize: s(10) }}>
-                <span className="font-semibold">{cat.category}: </span>
-                <span>{cat.skills.join(", ")}</span>
-              </div>
-            ))}
+            {skills.map((cat) => {
+              const validSkills = cat.skills.filter((s) => s.trim());
+              if (validSkills.length === 0) return null;
+              return (
+                <div key={cat.id} className="page-break-avoid" style={{ fontSize: s(10) }}>
+                  <span className="font-semibold">{cat.category}: </span>
+                  <span>{validSkills.join(", ")}</span>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

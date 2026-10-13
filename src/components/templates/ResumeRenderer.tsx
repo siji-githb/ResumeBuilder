@@ -1,7 +1,11 @@
 "use client";
 
 import type { Resume, TemplateId } from "@/types/resume";
-import { getFontFamilyCss, getResumeFontSizeScale } from "@/types/resume";
+import {
+  getFontFamilyCss,
+  getResumeFontSizeScale,
+  MARGIN_OPTIONS,
+} from "@/types/resume";
 import AtsClassicTemplate from "@/components/templates/AtsClassicTemplate";
 import ModernCleanTemplate from "@/components/templates/ModernCleanTemplate";
 import ModernSidebarTemplate from "@/components/templates/ModernSidebarTemplate";
@@ -20,13 +24,19 @@ interface Props {
  * Dispatches to the correct template component based on the
  * resume's settings.templateId (or an override prop).
  *
- * Sets `--r-scale` CSS variable so every template can use
- * `calc(Xpt * var(--r-scale))` for proportional font scaling.
+ * Sets:
+ * - `--r-scale`: Proportional font scaling
+ * - `--r-margin`: User-selected margin (1in / 2.54cm or 0.5in / 1.27cm)
+ * - `--r-margin-px`: Margin in CSS pixels (96 or 48)
  */
 export default function ResumeRenderer({ data, templateId }: Props) {
   const id = templateId ?? data.settings.templateId;
   const fontCss = getFontFamilyCss(data.settings.fontFamily);
   const scale = getResumeFontSizeScale(data.settings.fontSize);
+
+  const marginSetting = data.settings.margin || "normal";
+  const marginOption =
+    MARGIN_OPTIONS.find((m) => m.id === marginSetting) || MARGIN_OPTIONS[0];
 
   const renderTemplate = () => {
     switch (id) {
@@ -57,6 +67,8 @@ export default function ResumeRenderer({ data, templateId }: Props) {
         {
           fontFamily: fontCss,
           "--r-scale": scale,
+          "--r-margin": marginOption.cssValue,
+          "--r-margin-px": `${marginOption.cssPx}px`,
         } as React.CSSProperties
       }
       className="w-full"

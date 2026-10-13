@@ -92,6 +92,15 @@ export interface TemplateDefinition {
   category: TemplateCategory;
   description: string;
   tags: string[];
+  supportsPhoto?: boolean;
+}
+
+export function templateSupportsPhoto(templateId?: TemplateId): boolean {
+  return (
+    templateId === "modern-sidebar" ||
+    templateId === "modern-clean" ||
+    templateId === "creative-bold"
+  );
 }
 
 export const TEMPLATES: TemplateDefinition[] = [
@@ -102,6 +111,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     description:
       "Bold two-column layout with a stylish round profile photo, silver contact and skills badges, and modern pill section headers.",
     tags: ["Photo", "Two-Column", "Modern", "Creative"],
+    supportsPhoto: true,
   },
   {
     id: "chronological",
@@ -141,7 +151,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     category: "Modern",
     description:
       "Contemporary two-column design with a subtle sidebar for skills and contact info. Accent color header.",
-    tags: ["Modern", "Two Column", "Sidebar"],
+    tags: ["Photo", "Modern", "Two Column", "Sidebar"],
+    supportsPhoto: true,
   },
   {
     id: "creative-bold",
@@ -149,7 +160,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     category: "Creative",
     description:
       "Bold typography with unique section arrangements and visual flair for design-oriented roles.",
-    tags: ["Creative", "Bold", "Design"],
+    tags: ["Photo", "Creative", "Bold", "Design"],
+    supportsPhoto: true,
   },
   {
     id: "executive",
@@ -309,6 +321,9 @@ export interface PaperSizeOption {
   dimensions: string;
   width: string;
   height: string;
+  /** Page height in CSS pixels at 96 DPI (1in = 96px, 1mm = 96/25.4 px).
+   *  Used by the live preview page-break ruler and the PDF export slicer. */
+  pageHeightCssPx: number;
 }
 
 export const PAPER_SIZE_OPTIONS: PaperSizeOption[] = [
@@ -318,6 +333,7 @@ export const PAPER_SIZE_OPTIONS: PaperSizeOption[] = [
     dimensions: '8.5" × 11"',
     width: "8.5in",
     height: "11in",
+    pageHeightCssPx: 1056, // 11 × 96
   },
   {
     id: "a4",
@@ -325,6 +341,50 @@ export const PAPER_SIZE_OPTIONS: PaperSizeOption[] = [
     dimensions: "210 × 297 mm",
     width: "210mm",
     height: "297mm",
+    pageHeightCssPx: 1123, // 297 × (96 / 25.4) ≈ 1122.52 → 1123
+  },
+];
+
+// ─── Margin Definitions ────────────────────────────────────────────
+
+export type ResumeMargin = "normal" | "compact";
+
+export interface MarginOption {
+  id: ResumeMargin;
+  name: string;
+  label: string;
+  dimensions: string;
+  inch: number;
+  cm: number;
+  description: string;
+  /** Height and width in CSS pixels (96 for 1in / 2.54cm, 48 for 0.5in / 1.27cm) */
+  cssPx: number;
+  /** CSS string value */
+  cssValue: string;
+}
+
+export const MARGIN_OPTIONS: MarginOption[] = [
+  {
+    id: "normal",
+    name: "Normal",
+    label: "Normal (1 inch)",
+    dimensions: "1 in (2.54 cm)",
+    inch: 1,
+    cm: 2.54,
+    description: "Standard 1 in (2.54 cm) margins",
+    cssPx: 96,
+    cssValue: "1in",
+  },
+  {
+    id: "compact",
+    name: "Compact",
+    label: "Compact (0.5 inch)",
+    dimensions: "0.5 in (1.27 cm)",
+    inch: 0.5,
+    cm: 1.27,
+    description: "Compact 0.5 in (1.27 cm) margins — fits more content on 1 page",
+    cssPx: 48,
+    cssValue: "0.5in",
   },
 ];
 
@@ -335,6 +395,7 @@ export interface ResumeSettings {
   fontFamily: FontFamily;
   fontSize: "sm" | "base" | "lg";
   paperSize?: PaperSize;
+  margin?: ResumeMargin;
   primaryColor: string;
   documentTitle: string;
 }

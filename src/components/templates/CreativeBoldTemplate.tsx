@@ -27,19 +27,35 @@ export default function CreativeBoldTemplate({ data }: Props) {
     >
       {/* ── Hero Banner ─────────────────────────────────────── */}
       <header
-        className="px-8 pt-8 pb-6 text-white"
+        className="pb-6 text-white"
         style={{
           background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 50%, ${accent}99 100%)`,
+          paddingLeft: "var(--r-margin, 1in)",
+          paddingRight: "var(--r-margin, 1in)",
+          paddingTop: "var(--r-margin, 1in)",
         }}
       >
         <div className="flex items-center gap-5">
-          {basics.photoUrl && (
-            <div className="w-20 h-20 rounded-full overflow-hidden border-3 border-white/80 shadow-lg bg-white/10 shrink-0">
+          {basics.photoUrl ? (
+            <div className="w-20 h-20 rounded-full overflow-hidden border-[3px] border-white/90 shadow-lg bg-white/10 shrink-0">
               <img
                 src={basics.photoUrl}
                 alt={basics.fullName || "Profile"}
                 className="w-full h-full object-cover rounded-full"
               />
+            </div>
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/40 shadow-md shrink-0">
+              <span className="text-2xl font-bold text-white/90">
+                {basics.fullName
+                  ? basics.fullName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : "JM"}
+              </span>
             </div>
           )}
           <div className="min-w-0">
@@ -72,7 +88,7 @@ export default function CreativeBoldTemplate({ data }: Props) {
         </div>
       </header>
 
-      <div className="px-8 py-6">
+      <div className="py-6" style={{ paddingLeft: "var(--r-margin, 1in)", paddingRight: "var(--r-margin, 1in)" }}>
         {/* ── Summary ─────────────────────────────────────────── */}
         {summary && (
           <section className="mb-5">
@@ -152,19 +168,23 @@ export default function CreativeBoldTemplate({ data }: Props) {
                     {job.company}
                     {job.location ? ` · ${job.location}` : ""}
                   </p>
-                  {job.bulletPoints.length > 0 && (
-                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                      {job.bulletPoints.map((bp, i) => (
-                        <li
-                          key={i}
-                          className="leading-[1.4] text-gray-700"
-                          style={{ fontSize: s(9.5) }}
-                        >
-                          {bp}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {(() => {
+                    const validBullets = (job.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                    if (validBullets.length === 0) return null;
+                    return (
+                      <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                        {validBullets.map((bp, i) => (
+                          <li
+                            key={i}
+                            className="leading-[1.4] text-gray-700"
+                            style={{ fontSize: s(9.5) }}
+                          >
+                            {bp}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -210,19 +230,23 @@ export default function CreativeBoldTemplate({ data }: Props) {
                       {proj.link}
                     </p>
                   )}
-                  {proj.bulletPoints.length > 0 && (
-                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                      {proj.bulletPoints.map((bp, i) => (
-                        <li
-                          key={i}
-                          className="leading-[1.4] text-gray-700"
-                          style={{ fontSize: s(9.5) }}
-                        >
-                          {bp}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {(() => {
+                    const validBullets = (proj.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                    if (validBullets.length === 0) return null;
+                    return (
+                      <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                        {validBullets.map((bp, i) => (
+                          <li
+                            key={i}
+                            className="leading-[1.4] text-gray-700"
+                            style={{ fontSize: s(9.5) }}
+                          >
+                            {bp}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

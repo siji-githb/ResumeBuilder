@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useResumeStore } from "@/store/resume-store";
 import type {
@@ -14,17 +15,21 @@ import type {
   FontFamily,
   FontSize,
   PaperSize,
+  ResumeMargin,
   TemplateId,
 } from "@/types/resume";
 import {
   FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   PAPER_SIZE_OPTIONS,
+  MARGIN_OPTIONS,
   TEMPLATES,
   RESUME_COLOR_PRESETS,
+  templateSupportsPhoto,
 } from "@/types/resume";
 import { generateId } from "@/lib/sample-data";
 import ResumeRenderer from "@/components/templates/ResumeRenderer";
+import PageBreakRuler from "@/components/PageBreakRuler";
 import { downloadResumeAsPdf } from "@/lib/pdf-export";
 import {
   ArrowLeft,
@@ -50,6 +55,8 @@ import {
   Palette,
   Check,
   Upload,
+  ALargeSmall,
+  Maximize2,
 } from "lucide-react";
 
 // ─── Step Configuration ────────────────────────────────────────────
@@ -154,12 +161,75 @@ export default function EditorPage({
 
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [showColorPicker, setShowColorPicker] = useState<boolean>(false);
+  const [colorPickerPos, setColorPickerPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [pageCount, setPageCount] = useState<number>(1);
+  const [currentPreviewPage, setCurrentPreviewPage] = useState<number>(1);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const colorButtonRef = useRef<HTMLButtonElement>(null);
+
   const resume = resumes.find((r) => r.id === id);
 
   useEffect(() => {
     if (id) setActiveResume(id);
   }, [id, setActiveResume]);
+
+  useEffect(() => {
+    if (!showColorPicker) return;
+    const handleClose = () => setShowColorPicker(false);
+    window.addEventListener("resize", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    return () => {
+      window.removeEventListener("resize", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+    };
+  }, [showColorPicker]);
+
+  const toggleColorPicker = useCallback(() => {
+    setShowColorPicker((prev) => {
+      if (!prev && colorButtonRef.current) {
+        const rect = colorButtonRef.current.getBoundingClientRect();
+        const left = Math.max(12, Math.min(rect.left, window.innerWidth - 272));
+        setColorPickerPos({
+          top: rect.bottom + 8,
+          left,
+        });
+      }
+      return !prev;
+    });
+  }, []);
+
+  const paperSize = resume?.settings?.paperSize || "letter";
+  const paperOption =
+    PAPER_SIZE_OPTIONS.find((p) => p.id === paperSize) || PAPER_SIZE_OPTIONS[0];
+  const paperWidth        = paperOption.width;
+  const paperMinHeight    = paperOption.height;
+  const pageHeightCssPx   = paperOption.pageHeightCssPx;
+
+  const marginSetting = resume?.settings?.margin || "normal";
+  const marginOption =
+    MARGIN_OPTIONS.find((m) => m.id === marginSetting) || MARGIN_OPTIONS[0];
+
+  const totalPaperHeight = pageCount * pageHeightCssPx;
+
+  const handlePreviewScroll = useCallback(() => {
+    if (!previewScrollRef.current) return;
+    const scrollTop = previewScrollRef.current.scrollTop;
+    const pageIndex = Math.min(
+      pageCount,
+      Math.max(1, Math.floor((scrollTop + pageHeightCssPx * 0.4) / pageHeightCssPx) + 1)
+    );
+    setCurrentPreviewPage(pageIndex);
+  }, [pageCount, pageHeightCssPx]);
+
+  const scrollToPage = useCallback((targetPage: number) => {
+    if (!previewScrollRef.current) return;
+    const targetY = (targetPage - 1) * pageHeightCssPx;
+    previewScrollRef.current.scrollTo({
+      top: targetY,
+      behavior: "smooth",
+    });
+  }, [pageHeightCssPx]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!resume || isExporting) return;
@@ -171,6 +241,7 @@ export default function EditorPage({
         documentTitle: resume.settings.documentTitle,
         candidateName: resume.basics.fullName,
         paperSize: resume.settings.paperSize || "letter",
+        margin: resume.settings.margin || "normal",
       });
     } catch (err) {
       console.error("Direct PDF export error, falling back to print:", err);
@@ -218,14 +289,8 @@ export default function EditorPage({
     (p) => p.hex.toLowerCase() === activeColor.toLowerCase()
   );
 
-  const paperSize = resume.settings.paperSize || "letter";
-  const paperOption =
-    PAPER_SIZE_OPTIONS.find((p) => p.id === paperSize) || PAPER_SIZE_OPTIONS[0];
-  const paperWidth = paperOption.width;
-  const paperMinHeight = paperOption.height;
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#e6e6e6] text-[#1d1d1f] print:block">
+    <div className="fixed inset-0 overflow-hidden flex flex-col bg-[#e6e6e6] text-[#1d1d1f] print:static print:h-auto print:overflow-visible print:block">
       {/* Dynamic Print Page Size */}
       <style
         id="resume-print-page-style"
@@ -234,10 +299,10 @@ export default function EditorPage({
         }}
       />
       {/* ── Apple Frosted Top Bar ────────────────────────────── */}
-      <header className="sticky top-0 z-50 apple-frosted-nav print:hidden">
-        <div className="max-w-[1800px] mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
-          {/* Left: Back + Document Title */}
-          <div className="flex items-center gap-3 min-w-0">
+      <header className="shrink-0 z-50 apple-frosted-nav border-b border-black/8 print:hidden">
+        <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3">
+          {/* Left: Back & Format Controls Dropdowns */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <button
               onClick={() => router.push("/")}
               className="btn-ghost p-2! rounded-xl shrink-0"
@@ -245,182 +310,230 @@ export default function EditorPage({
             >
               <ArrowLeft className="w-4 h-4 text-[#305CDE]" />
             </button>
-            <div className="bg-white border border-black/8 rounded-xl px-3 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] flex items-center min-w-0 max-w-70 sm:max-w-md">
-              <input
-                type="text"
-                value={resume.settings.documentTitle}
-                onChange={(e) =>
-                  updateActiveResume({
-                    settings: { ...resume.settings, documentTitle: e.target.value },
-                  })
-                }
-                className="text-[#1d1d1f] font-bold bg-transparent border-none outline-none text-sm min-w-0 focus:ring-0 w-full"
-                placeholder="Document Title"
-              />
-            </div>
-          </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
-            {/* Template Selector */}
-            <div className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)]">
-              <LayoutTemplate className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
-              <label htmlFor="top-template-select" className="text-xs text-[#86868b] font-medium hidden sm:inline">
-                Template:
-              </label>
-              <select
-                id="top-template-select"
-                value={resume.settings.templateId || "ats-classic"}
-                onChange={(e) => {
-                  const nextTemplateId = e.target.value as TemplateId;
-                  const isNextTraditional =
-                    nextTemplateId === "chronological" ||
-                    nextTemplateId === "functional" ||
-                    nextTemplateId === "combination";
-                  updateActiveResume({
-                    settings: {
-                      ...resume.settings,
-                      templateId: nextTemplateId,
-                      fontFamily:
-                        isNextTraditional && resume.settings.fontFamily === "Calibri"
-                          ? "Times New Roman"
-                          : resume.settings.fontFamily,
-                    },
-                  });
-                }}
-                className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
-                title="Change resume template"
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {/* Template Selector */}
+              <div
+                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] shrink-0"
+                title="Resume Template: Choose layout structure and design style"
               >
-                {TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id} className="bg-white text-[#1d1d1f]">
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <LayoutTemplate className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
+                <label htmlFor="top-template-select" className="text-[11px] text-[#86868b] font-medium hidden sm:inline">
+                  Template:
+                </label>
+                <select
+                  id="top-template-select"
+                  value={resume.settings.templateId || "ats-classic"}
+                  onChange={(e) => {
+                    const nextTemplateId = e.target.value as TemplateId;
+                    const isNextTraditional =
+                      nextTemplateId === "chronological" ||
+                      nextTemplateId === "functional" ||
+                      nextTemplateId === "combination";
+                    updateActiveResume({
+                      settings: {
+                        ...resume.settings,
+                        templateId: nextTemplateId,
+                        fontFamily:
+                          isNextTraditional && resume.settings.fontFamily === "Calibri"
+                            ? "Times New Roman"
+                            : resume.settings.fontFamily,
+                      },
+                    });
+                  }}
+                  className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+                  title="Change resume template"
+                >
+                  {TEMPLATES.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-white text-[#1d1d1f]">
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Font Family Selector */}
-            <div className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)]">
-              <Type className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
-              <label htmlFor="top-font-select" className="text-xs text-[#86868b] font-medium hidden sm:inline">
-                Font:
-              </label>
-              <select
-                id="top-font-select"
-                value={resume.settings.fontFamily || "Calibri"}
-                onChange={(e) =>
-                  updateActiveResume({
-                    settings: {
-                      ...resume.settings,
-                      fontFamily: e.target.value as FontFamily,
-                    },
-                  })
-                }
-                className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+              {/* Font Family Selector */}
+              <div
+                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] shrink-0"
+                title="Font Family: Typography used for the resume"
               >
-                {FONT_OPTIONS.map((font) => (
-                  <option
-                    key={font.id}
-                    value={font.id}
-                    className="bg-white text-[#1d1d1f]"
-                    style={{ fontFamily: font.cssFamily }}
-                  >
-                    {font.name} ({font.category})
-                  </option>
-                ))}
-              </select>
-            </div>
+                <Type className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
+                <label htmlFor="top-font-select" className="text-[11px] text-[#86868b] font-medium hidden sm:inline">
+                  Font:
+                </label>
+                <select
+                  id="top-font-select"
+                  value={resume.settings.fontFamily || "Calibri"}
+                  onChange={(e) =>
+                    updateActiveResume({
+                      settings: {
+                        ...resume.settings,
+                        fontFamily: e.target.value as FontFamily,
+                      },
+                    })
+                  }
+                  className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+                  title="Resume font family"
+                >
+                  {FONT_OPTIONS.map((font) => (
+                    <option
+                      key={font.id}
+                      value={font.id}
+                      className="bg-white text-[#1d1d1f]"
+                      style={{ fontFamily: font.cssFamily }}
+                    >
+                      {font.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Font Size Selector */}
-            <div className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)]">
-              <label htmlFor="top-font-size-select" className="text-xs text-[#86868b] font-medium hidden sm:inline">
-                Size:
-              </label>
-              <select
-                id="top-font-size-select"
-                value={resume.settings.fontSize || "base"}
-                onChange={(e) =>
-                  updateActiveResume({
-                    settings: {
-                      ...resume.settings,
-                      fontSize: e.target.value as FontSize,
-                    },
-                  })
-                }
-                className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
-                title="Resume font size"
+              {/* Font Size Selector */}
+              <div
+                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] shrink-0"
+                title="Font Size: Proportional text sizing across the document"
               >
-                {FONT_SIZE_OPTIONS.map((opt) => (
-                  <option
-                    key={opt.id}
-                    value={opt.id}
-                    className="bg-white text-[#1d1d1f]"
-                    title={opt.description}
-                  >
-                    {opt.label} ({opt.bodyPt}pt)
-                  </option>
-                ))}
-              </select>
-            </div>
+                <ALargeSmall className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
+                <label htmlFor="top-font-size-select" className="text-[11px] text-[#86868b] font-medium hidden sm:inline">
+                  Size:
+                </label>
+                <select
+                  id="top-font-size-select"
+                  value={resume.settings.fontSize || "base"}
+                  onChange={(e) =>
+                    updateActiveResume({
+                      settings: {
+                        ...resume.settings,
+                        fontSize: e.target.value as FontSize,
+                      },
+                    })
+                  }
+                  className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+                  title="Resume font size"
+                >
+                  {FONT_SIZE_OPTIONS.map((opt) => (
+                    <option
+                      key={opt.id}
+                      value={opt.id}
+                      className="bg-white text-[#1d1d1f]"
+                      title={`${opt.label} (${opt.bodyPt}pt) — ${opt.description}`}
+                    >
+                      {opt.bodyPt}pt
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Paper Size Selector (Letter / A4) */}
-            <div className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)]">
-              <label htmlFor="top-paper-size-select" className="text-xs text-[#86868b] font-medium hidden sm:inline">
-                Paper:
-              </label>
-              <select
-                id="top-paper-size-select"
-                value={resume.settings.paperSize || "letter"}
-                onChange={(e) =>
-                  updateActiveResume({
-                    settings: {
-                      ...resume.settings,
-                      paperSize: e.target.value as PaperSize,
-                    },
-                  })
-                }
-                className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
-                title="Resume paper size (Letter or A4)"
+              {/* Paper Size Selector (Letter / A4) */}
+              <div
+                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] shrink-0"
+                title="Paper Format: Choose between Letter (US) or A4 (International)"
               >
-                {PAPER_SIZE_OPTIONS.map((opt) => (
-                  <option
-                    key={opt.id}
-                    value={opt.id}
-                    className="bg-white text-[#1d1d1f]"
-                    title={opt.dimensions}
-                  >
-                    {opt.name} ({opt.dimensions})
-                  </option>
-                ))}
-              </select>
-            </div>
+                <FileText className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
+                <label htmlFor="top-paper-size-select" className="text-[11px] text-[#86868b] font-medium hidden sm:inline">
+                  Paper:
+                </label>
+                <select
+                  id="top-paper-size-select"
+                  value={resume.settings.paperSize || "letter"}
+                  onChange={(e) =>
+                    updateActiveResume({
+                      settings: {
+                        ...resume.settings,
+                        paperSize: e.target.value as PaperSize,
+                      },
+                    })
+                  }
+                  className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+                  title="Resume paper size (Letter or A4)"
+                >
+                  {PAPER_SIZE_OPTIONS.map((opt) => (
+                    <option
+                      key={opt.id}
+                      value={opt.id}
+                      className="bg-white text-[#1d1d1f]"
+                      title={`${opt.name} (${opt.dimensions})`}
+                    >
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Color Theme Style Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowColorPicker(!showColorPicker)}
-                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] hover:bg-[#fafafc] transition-all cursor-pointer"
-                title="Change theme color style (Modern, Creative, Executive)"
+              {/* Margin Selector (Normal 1 in / 2.54 cm vs Compact 0.5 in / 1.27 cm) */}
+              <div
+                className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] shrink-0"
+                title="Page Margins: Normal (1 in / 2.54 cm) or Compact (0.5 in / 1.27 cm)"
               >
-                <span
-                  className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0 shadow-2xs"
-                  style={{ backgroundColor: activeColor }}
-                />
-                <span className="text-xs text-[#86868b] font-medium hidden sm:inline">Color:</span>
-                <span className="text-xs font-semibold text-[#1d1d1f] max-w-20 truncate">
-                  {matchedColorPreset ? matchedColorPreset.name.split(" ")[0] : "Accent"}
-                </span>
-                <ChevronDown className="w-3 h-3 text-[#86868b]" />
-              </button>
+                <Maximize2 className="w-3.5 h-3.5 text-[#305CDE] shrink-0" />
+                <label htmlFor="top-margin-select" className="text-[11px] text-[#86868b] font-medium hidden sm:inline">
+                  Margin:
+                </label>
+                <select
+                  id="top-margin-select"
+                  value={resume.settings.margin || "normal"}
+                  onChange={(e) =>
+                    updateActiveResume({
+                      settings: {
+                        ...resume.settings,
+                        margin: e.target.value as ResumeMargin,
+                      },
+                    })
+                  }
+                  className="bg-transparent text-xs font-semibold text-[#1d1d1f] outline-none cursor-pointer"
+                  title="Resume margin: Normal (1 in / 2.54 cm) or Compact (0.5 in / 1.27 cm)"
+                >
+                  {MARGIN_OPTIONS.map((opt) => (
+                    <option
+                      key={opt.id}
+                      value={opt.id}
+                      className="bg-white text-[#1d1d1f]"
+                      title={`${opt.label} — ${opt.description}`}
+                    >
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              {showColorPicker && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowColorPicker(false)}
+              {/* Color Theme Style Selector */}
+              <div
+                className="relative shrink-0"
+                title="Theme Accent Color: Accent color for headers, badges, and lines"
+              >
+                <button
+                  ref={colorButtonRef}
+                  type="button"
+                  onClick={toggleColorPicker}
+                  className="flex items-center gap-1.5 bg-white border border-black/8 rounded-xl px-2.5 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.03)] hover:bg-[#fafafc] transition-all cursor-pointer"
+                  title="Change theme color style (Modern, Creative, Executive)"
+                >
+                  <span
+                    className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0 shadow-2xs"
+                    style={{ backgroundColor: activeColor }}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-black/10 p-3.5 z-50">
+                  <span className="text-[11px] text-[#86868b] font-medium hidden sm:inline">Color:</span>
+                  <span className="text-xs font-semibold text-[#1d1d1f] whitespace-nowrap">
+                    {matchedColorPreset ? matchedColorPreset.name : "Accent"}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-[#86868b] shrink-0" />
+                </button>
+
+              {showColorPicker && typeof document !== "undefined" &&
+                createPortal(
+                  <>
+                    <div
+                      className="fixed inset-0 z-999"
+                      onClick={() => setShowColorPicker(false)}
+                    />
+                    <div
+                      style={{
+                        position: "fixed",
+                        top: colorPickerPos.top,
+                        left: colorPickerPos.left,
+                      }}
+                      className="w-64 bg-white rounded-2xl shadow-2xl border border-black/10 p-3.5 z-1000"
+                    >
                     <div className="flex items-center justify-between mb-2.5">
                       <span className="text-xs font-bold text-[#1d1d1f] flex items-center gap-1.5">
                         <Palette className="w-3.5 h-3.5 text-[#305CDE]" />
@@ -514,37 +627,40 @@ export default function EditorPage({
                         Reset
                       </button>
                     </div>
-                  </div>
-                </>
-              )}
+                    </div>
+                  </>,
+                  document.body
+                )}
             </div>
-
-            {/* Download PDF Button */}
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isExporting}
-              className="btn-primary text-xs px-3.5 py-2 font-semibold disabled:opacity-75 disabled:cursor-wait flex items-center gap-1.5"
-              title="Immediately download resume as PDF file"
-            >
-              {isExporting ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-                  <span>Downloading...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Download PDF</span>
-                </>
-              )}
-            </button>
+            </div>
           </div>
+
+          {/* Right: Download PDF Action */}
+          <button
+            onClick={handleDownloadPDF}
+            disabled={isExporting}
+            className="btn-primary text-xs px-3.5 sm:px-4 py-1.5 sm:py-2 font-semibold disabled:opacity-75 disabled:cursor-wait flex items-center gap-1.5 shrink-0 shadow-sm whitespace-nowrap cursor-pointer"
+            title="Immediately download resume as PDF file"
+          >
+            {isExporting ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                <span>Downloading...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="hidden sm:inline">Download PDF</span>
+                <span className="sm:hidden">PDF</span>
+              </>
+            )}
+          </button>
         </div>
       </header>
 
       {/* ── Apple Step Tabs Navigation (Royal Blue Active) ────── */}
-      <nav className="border-b border-black/5 bg-[#e6e6e6]/65 backdrop-blur-md print:hidden">
-        <div className="max-w-[1800px] mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
+      <nav className="shrink-0 border-b border-black/5 bg-[#e6e6e6]/65 backdrop-blur-md print:hidden">
+        <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 py-2 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
           {steps.map((step, idx) => {
             const Icon = step.icon;
             const isActive = safeCurrentStep === idx;
@@ -553,8 +669,8 @@ export default function EditorPage({
                 key={`${step.key}-${idx}`}
                 onClick={() => setCurrentStep(idx)}
                 className={`
-                  flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold
-                  transition-all duration-200 whitespace-nowrap cursor-pointer
+                  flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-semibold
+                  transition-all duration-200 whitespace-nowrap cursor-pointer shrink-0
                   ${
                     isActive
                       ? "bg-linear-to-b from-[#3d6df2] to-[#305CDE] text-white shadow-[0_4px_12px_rgba(48,92,222,0.38)] border border-white/20"
@@ -564,7 +680,7 @@ export default function EditorPage({
               >
                 <span
                   className={`
-                    w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-bold
+                    w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0
                     ${
                       isActive
                         ? "bg-white/20 text-white"
@@ -574,7 +690,7 @@ export default function EditorPage({
                 >
                   {idx + 1}
                 </span>
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-[#305CDE]"}`} />
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-white" : "text-[#305CDE]"}`} />
                 <span>{step.label}</span>
               </button>
             );
@@ -583,9 +699,9 @@ export default function EditorPage({
       </nav>
 
       {/* ── Split Pane ──────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0 print:block">
+      <div className="flex-1 min-h-0 flex overflow-hidden print:block print:h-auto print:overflow-visible">
         {/* Left: Pure White Form Highlighted on #e6e6e6 */}
-        <div className="w-130 shrink-0 overflow-y-auto p-4 sm:p-5 print:hidden bg-[#e6e6e6]">
+        <div className="w-130 shrink-0 h-full overflow-y-auto p-4 sm:p-5 print:hidden bg-[#e6e6e6]">
           <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-[0_12px_28px_-6px_rgba(0,0,0,0.07),inset_0_1.5px_1.5px_#ffffff,inset_0_-2px_4px_rgba(0,0,0,0.03)] border border-white/90">
             <StepForm
               step={activeStep.key}
@@ -619,20 +735,70 @@ export default function EditorPage({
           </div>
         </div>
 
-        {/* Right: Live Preview (Canvas #e6e6e6, Isolated White Paper Resume) */}
-        <div className="flex-1 overflow-y-auto bg-[#e6e6e6] print:bg-white print:overflow-visible">
+        {/* Right: Live Preview (Dedicated scroller container) */}
+        <div
+          ref={previewScrollRef}
+          onScroll={handlePreviewScroll}
+          className="flex-1 h-full overflow-y-auto bg-[#e6e6e6] print:bg-white print:overflow-visible preview-scroller relative"
+        >
           <div id="resume-export-stage" className="p-8 flex justify-center print:p-0">
-            <div
-              id="resume-print-target"
-              className="resume-preview-container"
-              style={{
-                width: paperWidth,
-                minHeight: paperMinHeight,
-              }}
-            >
-              <ResumeRenderer data={resume} />
+            {/*
+              Wrapper is position:relative so PageBreakRuler can sit as an
+              absolutely-positioned sibling of #resume-print-target.
+              The ruler is OUTSIDE the capture target so html2canvas never sees it.
+            */}
+            <div className="relative">
+              <div
+                id="resume-print-target"
+                className="resume-preview-container"
+                style={{
+                  width: paperWidth,
+                  minHeight: `${totalPaperHeight}px`,
+                  height: `${totalPaperHeight}px`,
+                }}
+              >
+                <ResumeRenderer data={resume} />
+              </div>
+
+              {/* Page-break overlay — purely visual, never exported to PDF */}
+              <PageBreakRuler
+                targetId="resume-print-target"
+                pageHeightPx={pageHeightCssPx}
+                marginPx={marginOption.cssPx}
+                onPageCountChange={setPageCount}
+              />
             </div>
           </div>
+
+          {/* Floating Page Navigator (Clean Apple-like floating pill) */}
+          {pageCount > 1 && (
+            <div className="sticky bottom-6 left-0 right-0 flex justify-center pointer-events-none pb-2 z-30 print:hidden">
+              <div className="pointer-events-auto bg-white/95 backdrop-blur-md border border-black/10 shadow-[0_8px_20px_rgba(0,0,0,0.12)] rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-semibold text-[#1d1d1f]">
+                <span className="text-[#86868b]">Page</span>
+                <span className="text-[#305CDE] font-bold">{currentPreviewPage}</span>
+                <span className="text-[#86868b]">of {pageCount}</span>
+                <div className="h-3 w-px bg-black/10 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => scrollToPage(currentPreviewPage - 1)}
+                  disabled={currentPreviewPage <= 1}
+                  className="p-1 hover:bg-black/5 rounded-full text-[#5a5a5e] hover:text-[#1d1d1f] disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Scroll to previous page"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToPage(currentPreviewPage + 1)}
+                  disabled={currentPreviewPage >= pageCount}
+                  className="p-1 hover:bg-black/5 rounded-full text-[#5a5a5e] hover:text-[#1d1d1f] disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Scroll to next page"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -807,90 +973,76 @@ function BasicsStep({
         />
       </div>
 
-      {/* ── Profile Photo (Round Style) ─────────────────────── */}
-      <div className="mb-6 p-4.5 bg-[#fafafc] rounded-2xl border border-black/6">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <span className="text-xs font-bold text-[#1d1d1f] block">
-              Profile Photo
-            </span>
-            <span className="text-[11px] text-[#86868b]">
-              Round circular style used on Modern and Creative templates
-            </span>
-          </div>
-          {resume.basics.photoUrl && (
-            <button
-              type="button"
-              onClick={() => updateBasics({ photoUrl: "" })}
-              className="text-xs text-[#ef4444] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Remove Photo</span>
-            </button>
-          )}
-        </div>
+      {/* ── Profile Photo (Only shown if template supports photos) ── */}
+      {templateSupportsPhoto(templateId) && (
+        <div className="mb-4 p-2.5 sm:p-3 bg-[#fafafc] rounded-xl border border-black/6">
+          <div className="flex items-center gap-3">
+            {/* Shrunk Avatar Preview */}
+            <div className="relative group shrink-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-[#305CDE]/80 shadow-2xs bg-white flex items-center justify-center">
+                {resume.basics.photoUrl ? (
+                  <img
+                    src={resume.basics.photoUrl}
+                    alt="Avatar"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-[#f0f2f5] flex items-center justify-center text-gray-400">
+                    <User className="w-5 h-5 text-gray-400" />
+                  </div>
+                )}
+              </div>
+            </div>
 
-        <div className="flex items-center gap-4">
-          {/* Circular Round Preview */}
-          <div className="relative group shrink-0">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#305CDE] shadow-md bg-white flex items-center justify-center">
-              {resume.basics.photoUrl ? (
-                <img
-                  src={resume.basics.photoUrl}
-                  alt="Round avatar"
-                  className="w-full h-full object-cover rounded-full"
+            {/* Action buttons */}
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-semibold text-[#1d1d1f] mb-1">
+                Profile Photo
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const base64 = event.target?.result as string;
+                        updateBasics({ photoUrl: base64 });
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
                 />
-              ) : (
-                <div className="w-full h-full bg-[#f0f2f5] flex flex-col items-center justify-center text-gray-400">
-                  <User className="w-7 h-7 text-gray-400" />
-                  <span className="text-[9px] font-semibold text-gray-400 mt-0.5">Round</span>
-                </div>
-              )}
-            </div>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-[#305CDE] hover:bg-[#254ab8] text-white border border-[#305CDE] text-[10px] sm:text-[11px] px-2 py-0.5 sm:px-2.5 sm:py-1 font-medium flex items-center gap-1 cursor-pointer rounded-md shadow-2xs transition-all"
+                  title="Upload photo from device"
+                >
+                  <Upload className="w-3 h-3 text-white" />
+                  <span>Upload Photo</span>
+                </button>
 
-          {/* Action buttons & controls */}
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      const base64 = event.target?.result as string;
-                      updateBasics({ photoUrl: base64 });
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="btn-primary text-xs px-3 py-1.5 font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5 text-white" />
-                <span>Upload Photo</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={resume.basics.photoUrl || ""}
-                onChange={(e) => updateBasics({ photoUrl: e.target.value })}
-                placeholder="Or paste image URL (https://...)"
-                className="input-field py-1 text-xs"
-              />
+                {resume.basics.photoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => updateBasics({ photoUrl: "" })}
+                    className="bg-white hover:bg-[#fee2e2] text-[#ef4444] border border-[#fca5a5] text-[10px] sm:text-[11px] px-2 py-0.5 sm:px-2.5 sm:py-1 font-medium flex items-center gap-1 cursor-pointer rounded-md shadow-2xs transition-all"
+                    title="Remove profile photo"
+                  >
+                    <Trash2 className="w-3 h-3 text-[#ef4444]" />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <SectionHeader title="Personal Information" />
 

@@ -9,20 +9,18 @@ import {
   Copy,
   Trash2,
   Download,
-  Upload,
   Clock,
   LayoutDashboard,
   ArrowRight,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import ResumeRenderer from "@/components/templates/ResumeRenderer";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { resumes, deleteResume, duplicateResume, setActiveResume, exportAll, importAll } =
+  const { resumes, deleteResume, duplicateResume, setActiveResume, exportAll } =
     useResumeStore();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -44,19 +42,6 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        importAll(reader.result);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
   const handleOpenResume = (id: string) => {
     setActiveResume(id);
     router.push(`/editor/${id}`);
@@ -68,7 +53,9 @@ export default function DashboardPage() {
   };
 
   const handleDelete = (id: string) => {
-    deleteResume(id);
+    if (typeof window !== "undefined" && window.confirm("Are you sure you want to delete this resume?")) {
+      deleteResume(id);
+    }
     setMenuOpen(null);
   };
 
@@ -116,20 +103,6 @@ export default function DashboardPage() {
               <Download className="w-3.5 h-3.5 text-[#305CDE]" />
               <span>Export All</span>
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="btn-ghost text-xs px-3.5 py-2 font-medium"
-            >
-              <Upload className="w-3.5 h-3.5 text-[#305CDE]" />
-              <span>Import</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-            />
 
             <button
               onClick={() => router.push("/templates/new")}
@@ -172,7 +145,7 @@ export default function DashboardPage() {
             </div>
             <h3 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">No resumes yet</h3>
             <p className="text-sm text-[#5a5a5e] mt-2 mb-8 max-w-lg mx-auto leading-relaxed">
-              Create your first professional resume with ATS-friendly templates, or import an existing JSON backup.
+              Create your first professional resume with ATS-friendly templates.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3.5">
               <button
@@ -182,13 +155,6 @@ export default function DashboardPage() {
               >
                 <Plus className="w-4 h-4" />
                 <span>Create New Resume</span>
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="btn-ghost text-sm px-5 py-2.5 font-medium"
-              >
-                <Upload className="w-4 h-4 text-[#305CDE]" />
-                <span>Import Backup</span>
               </button>
             </div>
           </div>
@@ -207,7 +173,7 @@ export default function DashboardPage() {
                 Create New Resume
               </span>
               <span className="text-[#86868b] text-xs mt-1 font-medium">
-                Choose from curated ATS_friendly templates
+                Choose from curated ATS-friendly templates
               </span>
             </button>
 

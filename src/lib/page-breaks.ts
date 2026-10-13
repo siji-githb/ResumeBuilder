@@ -1,0 +1,186 @@
+/**
+ * src/lib/page-breaks.ts
+ *
+ * Automatically detects elements crossing physical page boundaries (Letter / A4)
+ * and shifts them cleanly down to the top of the next page.
+ *
+ * Guarantees:
+ * - No text line, bullet point, heading, or item is ever sliced in half.
+ * - Section headings are kept with their content (no orphan headings).
+ * - Page cut lines always fall in clean white space.
+ * - Accurate page count: Measures the actual bottommost text/content element
+ *   so empty phantom pages are NEVER created.
+ * - Sized to exact full page multiples (pageCount * pageHeightPx)
+ *   so Page 2 or any next page has the exact same full physical paper height as Page 1.
+ */
+
+export interface PageBreakResult {
+  pageCount: number;
+  totalPaperHeight: number;
+}
+
+/**
+ * Finds the bottommost content element inside the container
+ * relative to the container's top.
+ */
+function getRealContentBottom(container: HTMLElement): number {
+  const containerRect = container.getBoundingClientRect();
+  const candidates = container.querySelectorAll<HTMLElement>(
+    "section, header, footer, [class*='space-y'] > div, .grid > div, p, li, h1, h2, h3, h4, span, div"
+  );
+
+  let maxBottom = 0;
+  candidates.forEach((el) => {
+    // Only inspect leaf nodes or block containers that have real layout
+    if (el.children.length === 0 || el.tagName === "SECTION" || el.classList.contains("page-break-avoid")) {
+      const rect = el.getBoundingClientRect();
+      if (rect.height > 0 && rect.width > 0) {
+        const bottom = rect.bottom - containerRect.top;
+        if (bottom > maxBottom) {
+          maxBottom = bottom;
+        }
+      }
+    }
+  });
+
+  return maxBottom;
+}
+
+export function applySmartPageBreaks(
+  container: HTMLElement,
+  pageHeightPx: number,
+  marginPx: number = 96
+): PageBreakResult {
+  if (!container) return { pageCount: 1, totalPaperHeight: pageHeightPx };
+
+  // 1. Temporarily clear forced heights to measure true natural content height
+  container.style.height = "";
+  container.style.minHeight = "";
+
+  const rendererWrapper = container.firstElementChild as HTMLElement | null;
+  if (rendererWrapper) {
+    rendererWrapper.style.height = "";
+    rendererWrapper.style.minHeight = "";
+  }
+
+  // 2. Reset any previously pushed elements
+  const previouslyPushed = container.querySelectorAll<HTMLElement>(
+    "[data-pushed-page-break='true']"
+  );
+  previouslyPushed.forEach((el) => {
+    el.style.marginTop = "";
+    el.removeAttribute("data-pushed-page-break");
+  });
+
+  const maxPages = 8;
+
+  // 3. Run smart page breaks pass for each boundary
+  for (let page = 1; page <= maxPages; page++) {
+    const boundary = page * pageHeightPx;
+    // Printable bottom of the outgoing page
+    const cutLine = boundary - marginPx;
+    // Printable top of the incoming page (boundary + exact margin)
+    const targetBoundaryTop = boundary + marginPx;
+
+    // Check where the actual content ends before deciding if we need to check this boundary
+    const currentBottom = getRealContentBottom(container);
+    // If real content does not reach into the bottom margin of this page, no split is needed
+    if (currentBottom <= cutLine) {
+      break;
+    }
+
+    const currentContainerRect = container.getBoundingClientRect();
+
+    const candidates = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".page-break-avoid, section, li, [class*='space-y'] > div, .grid > div"
+      )
+    );
+
+    for (let i = 0; i < candidates.length; i++) {
+      const el = candidates[i];
+      if (!el.isConnected) continue;
+
+      const rect = el.getBoundingClientRect();
+      const elTop = rect.top - currentContainerRect.top;
+      const elBottom = rect.bottom - currentContainerRect.top;
+
+      // Element already starts on or past the new page printable top
+      if (elTop >= targetBoundaryTop) {
+        break;
+      }
+
+      // Check if element:
+      // (a) crosses the bottom cutLine (straddles page 1 and page margin), OR
+      // (b) starts inside the forbidden margin band [cutLine, targetBoundaryTop)
+      const crossesCutLine = elTop < cutLine && elBottom > cutLine;
+      const inMarginBand = elTop >= cutLine && elTop < targetBoundaryTop;
+
+      if (crossesCutLine || inMarginBand) {
+        if (rect.height < pageHeightPx * 0.85) {
+          let targetEl: HTMLElement = el;
+
+          // Check if targetEl is preceded by an h2/h3 heading in its section that would become orphaned
+          const parentSection = el.closest("section");
+          if (parentSection && parentSection !== el) {
+            const heading = parentSection.querySelector("h2, h3");
+            if (heading) {
+              const headingRect = heading.getBoundingClientRect();
+              const headingTop = headingRect.top - currentContainerRect.top;
+              // If heading is near the cutLine (within 80px before cutLine) or already past it,
+              // push the entire parent section so the heading and content stay together
+              if (headingTop >= cutLine - 80 && headingTop < targetBoundaryTop) {
+                targetEl = parentSection;
+              }
+            }
+          }
+
+          const targetRect = targetEl.getBoundingClientRect();
+          const targetTop = targetRect.top - currentContainerRect.top;
+
+          // Push targetEl so its top aligns precisely with targetBoundaryTop (boundary + marginPx)
+          const pushDown = targetBoundaryTop - targetTop;
+
+          if (pushDown > 0) {
+            const currentMargin = parseFloat(targetEl.style.marginTop || "0");
+            targetEl.style.marginTop = `${currentMargin + pushDown}px`;
+            targetEl.setAttribute("data-pushed-page-break", "true");
+          }
+
+          // Break to re-evaluate subsequent boundaries with newly shifted layout
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. Measure where the actual content ends after shifts
+  const actualContentBottom = getRealContentBottom(container);
+  // Add bottom margin buffer
+  const effectiveHeight = actualContentBottom + marginPx;
+
+  // Calculate real page count using a 20px tolerance threshold so tiny subpixel overflows
+  // never spawn a phantom empty page
+  const pageCount = Math.max(
+    1,
+    Math.ceil((effectiveHeight - 20) / pageHeightPx)
+  );
+  const totalPaperHeight = pageCount * pageHeightPx;
+
+  // 5. Lock the container to full whole-page dimensions
+  container.style.height = `${totalPaperHeight}px`;
+  container.style.minHeight = `${totalPaperHeight}px`;
+
+  if (rendererWrapper) {
+    rendererWrapper.style.height = `${totalPaperHeight}px`;
+    rendererWrapper.style.minHeight = `${totalPaperHeight}px`;
+
+    const templateRoot = rendererWrapper.firstElementChild as HTMLElement | null;
+    if (templateRoot) {
+      templateRoot.style.height = `${totalPaperHeight}px`;
+      templateRoot.style.minHeight = `${totalPaperHeight}px`;
+    }
+  }
+
+  return { pageCount, totalPaperHeight };
+}

@@ -21,8 +21,8 @@ export default function ExecutiveTemplate({ data }: Props) {
 
   return (
     <div
-      className="executive leading-normal text-gray-900 bg-white p-10 w-full min-h-full"
-      style={{ fontSize: s(10.5) }}
+      className="executive leading-normal text-gray-900 bg-white w-full min-h-full"
+      style={{ padding: "var(--r-margin, 1in)", fontSize: s(10.5) }}
     >
       {/* ── Header ──────────────────────────────────────────── */}
       <header className="text-center mb-6">
@@ -99,19 +99,23 @@ export default function ExecutiveTemplate({ data }: Props) {
                   {job.company}
                   {job.location ? `, ${job.location}` : ""}
                 </p>
-                {job.bulletPoints.length > 0 && (
-                  <ul className="mt-1.5 space-y-1">
-                    {job.bulletPoints.map((bp, i) => (
-                      <li
-                        key={i}
-                        className="leading-[1.45] text-gray-700 pl-4 relative before:content-['—'] before:absolute before:left-0 before:text-gray-400"
-                        style={{ fontSize: s(9.5) }}
-                      >
-                        {bp}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {(() => {
+                  const validBullets = (job.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                  if (validBullets.length === 0) return null;
+                  return (
+                    <ul className="mt-1.5 space-y-1">
+                      {validBullets.map((bp, i) => (
+                        <li
+                          key={i}
+                          className="leading-[1.45] text-gray-700 pl-4 relative before:content-['—'] before:absolute before:left-0 before:text-gray-400"
+                          style={{ fontSize: s(9.5) }}
+                        >
+                          {bp}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -152,19 +156,23 @@ export default function ExecutiveTemplate({ data }: Props) {
                     {proj.link}
                   </p>
                 )}
-                {proj.bulletPoints.length > 0 && (
-                  <ul className="mt-1.5 space-y-1">
-                    {proj.bulletPoints.map((bp, i) => (
-                      <li
-                        key={i}
-                        className="leading-[1.45] text-gray-700 pl-4 relative before:content-['—'] before:absolute before:left-0 before:text-gray-400"
-                        style={{ fontSize: s(9.5) }}
-                      >
-                        {bp}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {(() => {
+                  const validBullets = (proj.bulletPoints || []).filter((bp) => bp.trim().length > 0);
+                  if (validBullets.length === 0) return null;
+                  return (
+                    <ul className="mt-1.5 space-y-1">
+                      {validBullets.map((bp, i) => (
+                        <li
+                          key={i}
+                          className="leading-[1.45] text-gray-700 pl-4 relative before:content-['—'] before:absolute before:left-0 before:text-gray-400"
+                          style={{ fontSize: s(9.5) }}
+                        >
+                          {bp}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
               </div>
             ))}
           </div>

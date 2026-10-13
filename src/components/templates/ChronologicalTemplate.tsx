@@ -20,12 +20,22 @@ export default function ChronologicalTemplate({ data }: Props) {
   const { basics, summary, experience, projects, certifications, education, skills, references } = data;
 
   const hasContactInfo =
-    Boolean(basics.fullName || basics.location || basics.phone || basics.email || basics.linkedin || basics.website);
+    Boolean(
+      basics.fullName ||
+        basics.headline ||
+        basics.location ||
+        basics.phone ||
+        basics.email ||
+        basics.linkedin ||
+        basics.website ||
+        basics.github
+    );
 
   return (
     <div
-      className="chronological-resume leading-[1.38] text-black bg-white p-8 sm:p-10 w-full min-h-full"
+      className="chronological-resume leading-[1.38] text-black bg-white w-full min-h-full"
       style={{
+        padding: "var(--r-margin, 1in)",
         fontSize: s(11),
       }}
     >
@@ -39,6 +49,11 @@ export default function ChronologicalTemplate({ data }: Props) {
             >
               {basics.fullName}
             </h1>
+          )}
+          {basics.headline && (
+            <div className="font-semibold text-gray-800" style={{ fontSize: s(10.5) }}>
+              {basics.headline}
+            </div>
           )}
           <div className="text-black mt-0.5 leading-snug" style={{ fontSize: s(10) }}>
             {basics.location && <div>{basics.location}</div>}
@@ -71,6 +86,19 @@ export default function ChronologicalTemplate({ data }: Props) {
               <div>
                 LinkedIn:{" "}
                 <span className="text-blue-700 underline">{basics.linkedin}</span>
+              </div>
+            )}
+            {basics.github && (
+              <div>
+                GitHub:{" "}
+                <a
+                  href={basics.github.startsWith("http") ? basics.github : `https://${basics.github}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-700 underline"
+                >
+                  {basics.github}
+                </a>
               </div>
             )}
           </div>

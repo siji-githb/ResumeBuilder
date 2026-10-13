@@ -274,6 +274,31 @@ body {
   break-inside: avoid;
 }
 
+/* ─── Preview Scroller (Independent smooth scrolling) ───────────── */
+
+.preview-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+  scroll-behavior: smooth;
+}
+
+.preview-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+
+.preview-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.preview-scroller::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 9999px;
+}
+
+.preview-scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
 /* ─── Print Styles ──────────────────────────────────────────────── */
 
 @media print {
@@ -390,3 +415,13 @@ body {
 .stagger-children > *:nth-child(6) { animation-delay: 200ms; }
 .stagger-children > *:nth-child(7) { animation-delay: 240ms; }
 .stagger-children > *:nth-child(8) { animation-delay: 280ms; }
+
+/* ─── Scrollbar Utility ─────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

@@ -46,9 +46,6 @@ interface ResumeStore {
 
   /** Export all resumes as a JSON string (for backup). */
   exportAll: () => string;
-
-  /** Import resumes from a JSON string (merge, not overwrite). */
-  importAll: (json: string) => void;
 }
 
 // ─── Store Implementation ──────────────────────────────────────────
@@ -142,20 +139,6 @@ export const useResumeStore = create<ResumeStore>()(
 
       exportAll: () => {
         return JSON.stringify(get().resumes, null, 2);
-      },
-
-      importAll: (json) => {
-        try {
-          const imported: Resume[] = JSON.parse(json);
-          if (!Array.isArray(imported)) return;
-          set((state) => {
-            const existingIds = new Set(state.resumes.map((r) => r.id));
-            const newResumes = imported.filter((r) => !existingIds.has(r.id));
-            return { resumes: [...state.resumes, ...newResumes] };
-          });
-        } catch {
-          console.error("Failed to import resumes: invalid JSON");
-        }
       },
     }),
     {
