@@ -13,7 +13,7 @@ import {
   ArrowRight,
   X,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ResumeRenderer from "@/components/templates/ResumeRenderer";
 
 export default function DashboardPage() {
@@ -26,6 +26,20 @@ export default function DashboardPage() {
     title: string;
   } | null>(null);
 
+  const triggerButtonRef = useRef<HTMLElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dialogCardRef = useRef<HTMLDivElement | null>(null);
+
+  const closeDeleteDialog = () => {
+    setResumeToDelete(null);
+    // Restore focus to the triggering Delete menu button when closed
+    requestAnimationFrame(() => {
+      if (triggerButtonRef.current && document.contains(triggerButtonRef.current)) {
+        triggerButtonRef.current.focus();
+      }
+    });
+  };
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClick = () => setMenuOpen(null);
@@ -35,15 +49,65 @@ export default function DashboardPage() {
     }
   }, [menuOpen]);
 
-  // Handle Escape key to close delete modal
+  // Move keyboard focus into the dialog when opened
   useEffect(() => {
-    if (!resumeToDelete) return;
+    if (resumeToDelete) {
+      const timer = setTimeout(() => {
+        cancelButtonRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [resumeToDelete]);
+
+  // Handle Escape key to close delete modal or menu
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setResumeToDelete(null);
+      if (e.key === "Escape") {
+        if (resumeToDelete) {
+          e.preventDefault();
+          closeDeleteDialog();
+        } else if (menuOpen) {
+          setMenuOpen(null);
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [resumeToDelete]);
+  }, [resumeToDelete, menuOpen]);
+
+  // Trap keyboard focus within the dialog
+  const handleDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeDeleteDialog();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const dialog = dialogCardRef.current;
+      if (!dialog) return;
+
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const firstElement = focusable[0];
+      const lastElement = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  };
 
   const handleOpenResume = (id: string) => {
     setActiveResume(id);
@@ -72,7 +136,13 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#e6e6e6] text-[#1d1d1f]">
-      {/* ── Apple Frosted Header ──────────────────────────────── */}
+      {/* Background content made inert when delete dialog is open */}
+      <div
+        inert={resumeToDelete ? true : undefined}
+        aria-hidden={Boolean(resumeToDelete) || undefined}
+        className="flex-1 flex flex-col"
+      >
+        {/* ── Apple Frosted Header ──────────────────────────────── */}
       <header className="sticky top-0 z-50 apple-frosted-nav">
         <div className="max-w-6xl mx-auto px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -233,12 +303,12 @@ export default function DashboardPage() {
                           Duplicate
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            triggerButtonRef.current = e.currentTarget;
                             setResumeToDelete({
                               id: resume.id,
                               title: resume.settings.documentTitle || "Untitled Resume",
                             });
-                            setMenuOpen(null);
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#ef4444] hover:bg-red-50 transition-colors cursor-pointer"
                         >
@@ -254,19 +324,23 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+      </div>
 
       {/* ── Delete Confirmation Modal ──────────────────────── */}
       {resumeToDelete && (
         <div
           className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-fade-in"
-          onClick={() => setResumeToDelete(null)}
+          onClick={() => closeDeleteDialog()}
         >
           <div
+            ref={dialogCardRef}
             className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.25)] border border-black/8 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleDialogKeyDown}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-modal-title"
+            tabIndex={-1}
           >
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 text-[#ef4444] flex items-center justify-center shrink-0 shadow-xs">
@@ -274,9 +348,10 @@ export default function DashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setResumeToDelete(null)}
+                onClick={() => closeDeleteDialog()}
                 className="p-1.5 rounded-xl hover:bg-black/5 text-[#86868b] hover:text-[#1d1d1f] transition-colors cursor-pointer"
                 title="Cancel"
+                aria-label="Close dialog"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -295,8 +370,9 @@ export default function DashboardPage() {
 
             <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-black/6">
               <button
+                ref={cancelButtonRef}
                 type="button"
-                onClick={() => setResumeToDelete(null)}
+                onClick={() => closeDeleteDialog()}
                 className="btn-ghost text-xs px-4 py-2 font-semibold text-[#5a5a5e] hover:text-[#1d1d1f] rounded-xl cursor-pointer"
               >
                 Cancel
@@ -306,6 +382,8 @@ export default function DashboardPage() {
                 onClick={() => {
                   deleteResume(resumeToDelete.id);
                   setResumeToDelete(null);
+                  setMenuOpen(null);
+                  triggerButtonRef.current = null;
                 }}
                 className="bg-[#ef4444] hover:bg-[#dc2626] active:bg-[#b91c1c] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-[0_4px_12px_rgba(239,68,68,0.35)] transition-all flex items-center gap-1.5 cursor-pointer"
               >

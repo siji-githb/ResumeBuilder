@@ -144,8 +144,11 @@ export function applySmartPageBreaks(
             const child = allCandidates[j];
             if (child !== el && el.contains(child)) {
               const childRect = child.getBoundingClientRect();
+              if (childRect.height <= 0 || childRect.width <= 0) continue;
+
+              const childTop = childRect.top - currentContainerRect.top;
               const childBottom = childRect.bottom - currentContainerRect.top;
-              if (childBottom > 0 && childBottom <= cutLine) {
+              if (childTop < cutLine && childBottom > 0 && childBottom <= cutLine) {
                 hasChildFittingOnPage = true;
                 break;
               }
