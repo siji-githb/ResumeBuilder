@@ -8,19 +8,23 @@ import {
   MoreVertical,
   Copy,
   Trash2,
-  Download,
   Clock,
   LayoutDashboard,
   ArrowRight,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import ResumeRenderer from "@/components/templates/ResumeRenderer";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { resumes, deleteResume, duplicateResume, setActiveResume, exportAll } =
+  const { resumes, deleteResume, duplicateResume, setActiveResume } =
     useResumeStore();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [resumeToDelete, setResumeToDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -31,16 +35,15 @@ export default function DashboardPage() {
     }
   }, [menuOpen]);
 
-  const handleExportAll = () => {
-    const json = exportAll();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resume-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Handle Escape key to close delete modal
+  useEffect(() => {
+    if (!resumeToDelete) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setResumeToDelete(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [resumeToDelete]);
 
   const handleOpenResume = (id: string) => {
     setActiveResume(id);
@@ -49,13 +52,6 @@ export default function DashboardPage() {
 
   const handleDuplicate = (id: string) => {
     duplicateResume(id);
-    setMenuOpen(null);
-  };
-
-  const handleDelete = (id: string) => {
-    if (typeof window !== "undefined" && window.confirm("Are you sure you want to delete this resume?")) {
-      deleteResume(id);
-    }
     setMenuOpen(null);
   };
 
@@ -96,14 +92,6 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={handleExportAll}
-              className="btn-ghost text-xs px-3.5 py-2 font-medium"
-            >
-              <Download className="w-3.5 h-3.5 text-[#305CDE]" />
-              <span>Export All</span>
-            </button>
-
             <button
               onClick={() => router.push("/templates/new")}
               className="btn-primary text-xs px-4 py-2"
@@ -245,8 +233,14 @@ export default function DashboardPage() {
                           Duplicate
                         </button>
                         <button
-                          onClick={() => handleDelete(resume.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#ef4444] hover:bg-red-50 transition-colors"
+                          onClick={() => {
+                            setResumeToDelete({
+                              id: resume.id,
+                              title: resume.settings.documentTitle || "Untitled Resume",
+                            });
+                            setMenuOpen(null);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#ef4444] hover:bg-red-50 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-[#ef4444]" />
                           Delete
@@ -260,6 +254,68 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* ── Delete Confirmation Modal ──────────────────────── */}
+      {resumeToDelete && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-fade-in"
+          onClick={() => setResumeToDelete(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.25)] border border-black/8 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 text-[#ef4444] flex items-center justify-center shrink-0 shadow-xs">
+                <Trash2 className="w-6 h-6 text-[#ef4444]" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setResumeToDelete(null)}
+                className="p-1.5 rounded-xl hover:bg-black/5 text-[#86868b] hover:text-[#1d1d1f] transition-colors cursor-pointer"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <h3 id="delete-modal-title" className="text-lg font-bold text-[#1d1d1f] tracking-tight">
+                Delete Resume?
+              </h3>
+              <p className="text-xs text-[#5a5a5e] mt-2 leading-relaxed">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-[#1d1d1f]">"{resumeToDelete.title}"</span>?
+                This action cannot be undone and your resume will be permanently removed.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-black/6">
+              <button
+                type="button"
+                onClick={() => setResumeToDelete(null)}
+                className="btn-ghost text-xs px-4 py-2 font-semibold text-[#5a5a5e] hover:text-[#1d1d1f] rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteResume(resumeToDelete.id);
+                  setResumeToDelete(null);
+                }}
+                className="bg-[#ef4444] hover:bg-[#dc2626] active:bg-[#b91c1c] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-[0_4px_12px_rgba(239,68,68,0.35)] transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-white" />
+                <span>Delete Resume</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

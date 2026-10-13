@@ -26,7 +26,7 @@ export interface PageBreakResult {
 function getRealContentBottom(container: HTMLElement): number {
   const containerRect = container.getBoundingClientRect();
   const candidates = container.querySelectorAll<HTMLElement>(
-    "section, header, footer, [class*='space-y'] > div, .grid > div, p, li, h1, h2, h3, h4, span, div"
+    "section, header, footer, .page-break-avoid, [class*='space-y'] > div, .grid > div, p, li, h1, h2, h3, h4"
   );
 
   let maxBottom = 0;
@@ -61,6 +61,12 @@ export function applySmartPageBreaks(
   if (rendererWrapper) {
     rendererWrapper.style.height = "";
     rendererWrapper.style.minHeight = "";
+
+    const templateRoot = rendererWrapper.firstElementChild as HTMLElement | null;
+    if (templateRoot) {
+      templateRoot.style.height = "";
+      templateRoot.style.minHeight = "";
+    }
   }
 
   // 2. Reset any previously pushed elements
@@ -89,41 +95,81 @@ export function applySmartPageBreaks(
       break;
     }
 
-    const currentContainerRect = container.getBoundingClientRect();
+    // A single page boundary may have multiple elements crossing it across parallel columns
+    // (e.g. ModernSidebar has both a left <aside> and right <main>, or multi-column grids).
+    // We iterate on this boundary until NO elements cross cutLine or sit in [cutLine, targetBoundaryTop).
+    let boundaryPass = 0;
+    const maxPassesPerPage = 8;
 
-    const candidates = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        ".page-break-avoid, section, li, [class*='space-y'] > div, .grid > div"
-      )
-    );
+    while (boundaryPass < maxPassesPerPage) {
+      boundaryPass++;
+      const currentContainerRect = container.getBoundingClientRect();
 
-    for (let i = 0; i < candidates.length; i++) {
-      const el = candidates[i];
-      if (!el.isConnected) continue;
+      const allCandidates = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          ".page-break-avoid, section, li, [class*='space-y'] > div, .grid > div"
+        )
+      );
 
-      const rect = el.getBoundingClientRect();
-      const elTop = rect.top - currentContainerRect.top;
-      const elBottom = rect.bottom - currentContainerRect.top;
+      let candidateToPush: HTMLElement | null = null;
+      let calculatedPushDown = 0;
 
-      // Element already starts on or past the new page printable top
-      if (elTop >= targetBoundaryTop) {
-        break;
-      }
+      for (let i = 0; i < allCandidates.length; i++) {
+        const el = allCandidates[i];
+        if (!el.isConnected) continue;
 
-      // Check if element:
-      // (a) crosses the bottom cutLine (straddles page 1 and page margin), OR
-      // (b) starts inside the forbidden margin band [cutLine, targetBoundaryTop)
-      const crossesCutLine = elTop < cutLine && elBottom > cutLine;
-      const inMarginBand = elTop >= cutLine && elTop < targetBoundaryTop;
+        const rect = el.getBoundingClientRect();
+        if (rect.height <= 0 || rect.width <= 0) continue;
 
-      if (crossesCutLine || inMarginBand) {
-        if (rect.height < pageHeightPx * 0.85) {
+        const elTop = rect.top - currentContainerRect.top;
+        const elBottom = rect.bottom - currentContainerRect.top;
+
+        // Element already starts on or past the new page printable top
+        if (elTop >= targetBoundaryTop) {
+          continue;
+        }
+
+        // Check if element:
+        // (a) crosses the bottom cutLine (straddles page 1 and page margin), OR
+        // (b) starts inside the forbidden margin band [cutLine, targetBoundaryTop)
+        const crossesCutLine = elTop < cutLine && elBottom > cutLine;
+        const inMarginBand = elTop >= cutLine && elTop < targetBoundaryTop;
+
+        if (crossesCutLine || inMarginBand) {
+          // If this element contains child candidates that ALSO match,
+          // check if any child candidate finishes cleanly before cutLine.
+          // If so, keep the parent container and push the child item instead.
+          let hasChildFittingOnPage = false;
+          for (let j = 0; j < allCandidates.length; j++) {
+            const child = allCandidates[j];
+            if (child !== el && el.contains(child)) {
+              const childRect = child.getBoundingClientRect();
+              const childBottom = childRect.bottom - currentContainerRect.top;
+              if (childBottom > 0 && childBottom <= cutLine) {
+                hasChildFittingOnPage = true;
+                break;
+              }
+            }
+          }
+
+          if (hasChildFittingOnPage) {
+            // Container has leading children that fit on this page — keep container here
+            // and let the loop evaluate its children
+            continue;
+          }
+
+          // If element is larger than 85% of a page, don't push as a whole;
+          // let smaller children (e.g. li's) be pushed instead
+          if (rect.height >= pageHeightPx * 0.85) {
+            continue;
+          }
+
           let targetEl: HTMLElement = el;
 
-          // Check if targetEl is preceded by an h2/h3 heading in its section that would become orphaned
+          // Check if targetEl is preceded by an h1/h2/h3 heading in its section that would become orphaned
           const parentSection = el.closest("section");
           if (parentSection && parentSection !== el) {
-            const heading = parentSection.querySelector("h2, h3");
+            const heading = parentSection.querySelector("h1, h2, h3, header");
             if (heading) {
               const headingRect = heading.getBoundingClientRect();
               const headingTop = headingRect.top - currentContainerRect.top;
@@ -137,19 +183,23 @@ export function applySmartPageBreaks(
 
           const targetRect = targetEl.getBoundingClientRect();
           const targetTop = targetRect.top - currentContainerRect.top;
-
-          // Push targetEl so its top aligns precisely with targetBoundaryTop (boundary + marginPx)
           const pushDown = targetBoundaryTop - targetTop;
 
           if (pushDown > 0) {
-            const currentMargin = parseFloat(targetEl.style.marginTop || "0");
-            targetEl.style.marginTop = `${currentMargin + pushDown}px`;
-            targetEl.setAttribute("data-pushed-page-break", "true");
+            candidateToPush = targetEl;
+            calculatedPushDown = pushDown;
+            break;
           }
-
-          // Break to re-evaluate subsequent boundaries with newly shifted layout
-          break;
         }
+      }
+
+      if (candidateToPush && calculatedPushDown > 0) {
+        const currentMargin = parseFloat(candidateToPush.style.marginTop || "0");
+        candidateToPush.style.marginTop = `${currentMargin + calculatedPushDown}px`;
+        candidateToPush.setAttribute("data-pushed-page-break", "true");
+      } else {
+        // No candidates on this boundary need pushing — boundary is clean
+        break;
       }
     }
   }

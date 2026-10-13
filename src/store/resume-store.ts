@@ -43,9 +43,6 @@ interface ResumeStore {
 
   /** Get a resume by id. */
   getResume: (id: string) => Resume | undefined;
-
-  /** Export all resumes as a JSON string (for backup). */
-  exportAll: () => string;
 }
 
 // ─── Store Implementation ──────────────────────────────────────────
@@ -135,10 +132,6 @@ export const useResumeStore = create<ResumeStore>()(
 
       getResume: (id) => {
         return get().resumes.find((r) => r.id === id);
-      },
-
-      exportAll: () => {
-        return JSON.stringify(get().resumes, null, 2);
       },
     }),
     {

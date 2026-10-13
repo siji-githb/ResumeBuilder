@@ -765,6 +765,9 @@ export default function EditorPage({
                 targetId="resume-print-target"
                 pageHeightPx={pageHeightCssPx}
                 marginPx={marginOption.cssPx}
+                templateId={resume.settings.templateId}
+                fontFamily={resume.settings.fontFamily}
+                fontSize={resume.settings.fontSize}
                 onPageCountChange={setPageCount}
               />
             </div>

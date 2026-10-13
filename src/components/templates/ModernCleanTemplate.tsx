@@ -112,7 +112,7 @@ export default function ModernCleanTemplate({ data }: Props) {
             </h2>
             <div className="space-y-3">
               {skills.map((cat) => (
-                <div key={cat.id}>
+                <div key={cat.id} className="page-break-avoid">
                   <h3 className="font-semibold text-white/80 mb-1" style={{ fontSize: s(9.5) }}>
                     {cat.category}
                   </h3>
@@ -143,7 +143,7 @@ export default function ModernCleanTemplate({ data }: Props) {
               Education
             </h2>
             {education.map((edu) => (
-              <div key={edu.id} className="mb-2.5" style={{ fontSize: s(9) }}>
+              <div key={edu.id} className="mb-2.5 page-break-avoid" style={{ fontSize: s(9) }}>
                 <p className="font-semibold text-white">{edu.degree}</p>
                 <p className="text-white/80">{edu.institution}</p>
                 <p className="text-white/60" style={{ fontSize: s(8) }}>
@@ -170,7 +170,7 @@ export default function ModernCleanTemplate({ data }: Props) {
               Certifications
             </h2>
             {certifications.map((cert) => (
-              <div key={cert.id} className="mb-2" style={{ fontSize: s(9) }}>
+              <div key={cert.id} className="mb-2 page-break-avoid" style={{ fontSize: s(9) }}>
                 <p className="font-semibold text-white">{cert.name}</p>
                 <p className="text-white/70" style={{ fontSize: s(8) }}>
                   {cert.issuer} · {cert.date}
