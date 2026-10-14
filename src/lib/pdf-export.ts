@@ -134,7 +134,16 @@ function resolveAllColors(clonedDoc: Document, root: HTMLElement): void {
 // When we force a fixed total height on the wrapper, the sidebar div itself
 // doesn't automatically stretch unless we find it and set its height too.
 
-function extendSidebarFills(clonedElement: HTMLElement, totalHeight: number): void {
+// clonedDoc is required so getComputedStyle uses the iframe window, not the main window.
+// At call time, resolveAllColors has already run, so all bg colors are plain rgb().
+function extendSidebarFills(
+  clonedDoc: Document,
+  clonedElement: HTMLElement,
+  totalHeight: number
+): void {
+  const win = clonedDoc.defaultView;
+  if (!win) return;
+
   const templateRoot = clonedElement.querySelector<HTMLElement>(
     ".modern-sidebar, .ats-classic, .modern-clean, .creative-bold, .executive, .chronological, .functional, .combination"
   );
@@ -147,16 +156,22 @@ function extendSidebarFills(clonedElement: HTMLElement, totalHeight: number): vo
       ) as HTMLElement[]);
 
   for (const child of candidates) {
-    const bg = child.style.backgroundColor || getComputedStyle(child).backgroundColor;
+    // Check inline style first (covers style={{ backgroundColor: accent }})
+    // then fall back to computed style. resolveAllColors has already run so
+    // getComputedStyle returns plain rgb() values at this point.
+    const bg =
+      child.style.backgroundColor ||
+      win.getComputedStyle(child).getPropertyValue("background-color");
+
     const isColoredPanel =
-      bg &&
+      !!bg &&
       bg !== "rgba(0, 0, 0, 0)" &&
       bg !== "transparent" &&
       bg !== "rgb(255, 255, 255)";
 
     if (isColoredPanel) {
       child.style.minHeight = `${totalHeight}px`;
-      child.style.height = `${totalHeight}px`;
+      child.style.height    = `${totalHeight}px`;
     }
   }
 }
@@ -236,6 +251,13 @@ export async function downloadResumeAsPdf({
         "margin:0;padding:0;background:#ffffff;width:" + targetWidthPx + "px;";
       clonedDoc.body.appendChild(clonedElement);
 
+      // Inject CSS variables that templates depend on so they resolve correctly
+      // inside the isolated cloned document (--r-margin drives template padding).
+      const marginValue = margin === "compact" ? "0.5in" : "1in";
+      const cssVarStyle = clonedDoc.createElement("style");
+      cssVarStyle.textContent = `:root { --r-margin: ${marginValue}; }`;
+      clonedDoc.head.appendChild(cssVarStyle);
+
       // ── Step 3: Pin the resume element at top-left with exact dimensions ─
       clonedElement.style.cssText = [
         "position:absolute",
@@ -254,23 +276,24 @@ export async function downloadResumeAsPdf({
         "border-radius:0",
         "transform:none",
         "overflow:visible",
+        "background-image:none", // prevent page-break ruler CSS from appearing in PDF
       ].join(";");
 
       // ── Step 4: Expand ResumeRenderer + template roots to full width ─────
       const rendererWrapper = clonedElement.firstElementChild as HTMLElement | null;
       if (rendererWrapper) {
-        rendererWrapper.style.width = "100%";
-        rendererWrapper.style.minHeight = `${targetHeightPx}px`;
-        rendererWrapper.style.height = "auto";
-        rendererWrapper.style.display = "flex";
-        rendererWrapper.style.flexDirection = "column";
+        rendererWrapper.style.width          = "100%";
+        rendererWrapper.style.minHeight      = `${targetHeightPx}px`;
+        rendererWrapper.style.height         = "auto";
+        rendererWrapper.style.display        = "flex";
+        rendererWrapper.style.flexDirection  = "column";
 
         const templateRoot = rendererWrapper.firstElementChild as HTMLElement | null;
         if (templateRoot) {
-          templateRoot.style.width = "100%";
+          templateRoot.style.width     = "100%";
           templateRoot.style.minHeight = `${targetHeightPx}px`;
-          templateRoot.style.height = "auto";
-          templateRoot.style.flex = "1";
+          templateRoot.style.height    = "auto";
+          templateRoot.style.flex      = "1";
         }
       }
 
@@ -295,24 +318,24 @@ export async function downloadResumeAsPdf({
         }
       }
 
-      // ── Step 6: Extend sidebar colour panels to cover all pages ─────────
-      extendSidebarFills(clonedElement, totalPaperHeight);
-
-      // ── Step 7: Strip screen-only decorations ────────────────────────────
+      // ── Step 6: Strip screen-only decorations ────────────────────────────
       clonedElement.querySelectorAll<HTMLElement>("*").forEach((el) => {
         el.style.boxShadow  = "none";
         el.style.textShadow = "none";
       });
 
-      // ── Step 8: Pre-resolve all oklch / color-mix / modern CSS colours ───
+      // ── Step 7: Pre-resolve all oklch / color-mix / modern CSS colours ───
       //
-      // Tailwind v4 uses oklch() for its entire palette (286+ tokens).
-      // html2canvas 1.4.1's CSS parser can't handle oklch/color-mix etc.
-      // The postinstall patch now uses getImageData() instead of the broken
-      // fillStyle-getter approach, but this pass is an additional safety net:
-      // it inlines every element's computed colour as plain rgb/rgba *before*
-      // html2canvas parses a single rule.
+      // MUST run before extendSidebarFills (step 8) so that sidebar background
+      // colour detection sees plain rgb() values, not unresolved oklch() strings.
       resolveAllColors(clonedDoc, clonedElement);
+
+      // ── Step 8: Extend sidebar colour panels to cover all pages ─────────
+      //
+      // Runs after resolveAllColors so getComputedStyle returns rgb() values.
+      // extendSidebarFills now takes clonedDoc so it uses the iframe window for
+      // getComputedStyle — never the main window — avoiding cross-doc style errors.
+      extendSidebarFills(clonedDoc, clonedElement, totalPaperHeight);
     },
   });
 

@@ -53,19 +53,20 @@ export function applySmartPageBreaks(
 ): PageBreakResult {
   if (!container) return { pageCount: 1, totalPaperHeight: pageHeightPx };
 
-  // 1. Temporarily clear forced heights to measure true natural content height
-  container.style.height = "";
-  container.style.minHeight = "";
+  // 1. Release forced heights so the flex layout sizes to content naturally.
+  //    Use "auto" not "" — empty string collapses flex:1 children to zero height.
+  container.style.height = "auto";
+  container.style.minHeight = "auto";
 
   const rendererWrapper = container.firstElementChild as HTMLElement | null;
   if (rendererWrapper) {
-    rendererWrapper.style.height = "";
-    rendererWrapper.style.minHeight = "";
+    rendererWrapper.style.height = "auto";
+    rendererWrapper.style.minHeight = "auto";
 
     const templateRoot = rendererWrapper.firstElementChild as HTMLElement | null;
     if (templateRoot) {
-      templateRoot.style.height = "";
-      templateRoot.style.minHeight = "";
+      templateRoot.style.height = "auto";
+      templateRoot.style.minHeight = "auto";
     }
   }
 
